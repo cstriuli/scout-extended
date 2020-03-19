@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Algolia\ScoutExtended\Repositories;
 
 use Algolia\AlgoliaSearch\Exceptions\NotFoundException;
+use Algolia\ScoutExtended\Algolia;
 use Algolia\AlgoliaSearch\SearchClient;
 use Algolia\AlgoliaSearch\SearchIndex;
 use Algolia\ScoutExtended\Settings\Settings;
@@ -38,6 +39,11 @@ final class RemoteSettingsRepository
     private $client;
 
     /**
+     * @var \Algolia\ScoutExtended\Algolia
+     */
+    private $algolia;
+
+    /**
      * @var array
      */
     private $defaults;
@@ -46,12 +52,14 @@ final class RemoteSettingsRepository
      * RemoteRepository constructor.
      *
      * @param \Algolia\AlgoliaSearch\SearchClient $client
+     * @param \Algolia\ScoutExtended\Algolia $algolia
      *
      * @return void
      */
-    public function __construct(SearchClient $client)
+    public function __construct(SearchClient $client,  Algolia $algolia)
     {
         $this->client = $client;
+        $this->algolia = $algolia;
     }
 
     /**
@@ -103,6 +111,20 @@ final class RemoteSettingsRepository
     {
         try {
             $settings = $index->getSettings();
+
+            if (isset($settings['replicas'])) {
+    
+                $settings['replicas_settings'] = array_reduce(
+                    $settings['replicas'],
+                    function (array $carry, $key) {
+                        $carry[$key] = $replicaIndex->getSettings($key);
+
+                        return $carry;
+                    },
+                    []
+                );
+            }
+
         } catch (NotFoundException $e) {
             $index->saveObject(['objectID' => 'temp'])->wait();
             $settings = $index->getSettings();
